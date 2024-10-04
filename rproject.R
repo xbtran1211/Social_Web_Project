@@ -1,3 +1,6 @@
+# Prompt: detailed steps to perform kmeans clustering for songs genre in a playlist based on 
+# their audio features with Spotify API using R
+
 ## Initiating working environment 
 
 Sys.setenv(SPOTIFY_CLIENT_ID = '3a5930bcdbb744079f18ee5b827e52f5') # Spotify client ID
@@ -8,30 +11,30 @@ access_token <- get_spotify_access_token() # Get access token
 
 # Data collection and exploration -----------------------------------------
 
+library(spotifyr)
+library(dplyr)
+library(FactoMineR)
+library(factoextra)
+
 my_playlist_id <- "5Sc2esIc6s0VsJTE5GgfDg"
 
-my_playlist_tracks <- get_playlist_tracks("5Sc2esIc6s0VsJTE5GgfDg")
+audio_features <- get_playlist_audio_features(playlist_uris = "5Sc2esIc6s0VsJTE5GgfDg")
 
-head(my_playlist_tracks)
-
-tracks_id <- my_playlist_tracks$track.id
-
-audio_features <- get_playlist_audio_features(playlist_uris = '5Sc2esIc6s0VsJTE5GgfDg')
-
-head(audio_features)
-
+print(audio_features)
 
 # Getting Tracks' Audio Features ------------------------------------------
 
-audio_features <- audio_features %>%
-  select(track.name, danceability, energy, loudness, tempo, valence, acousticness, instrumentalness)
+# Select relevant audio features for clustering
+audio_features_selected <- audio_features %>%
+  select(track.name, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
 
+audio_features_selected <- na.omit(audio_features_selected)
+print(audio_features_selected)
 
-# Dropping tracks that are locally imported by user because they are not recognised by R 
-audio_features <- na.omit(audio_features)
+# Standardize (scale) the features
+audio_features_scaled <- scale(audio_features_selected[,-1])
 
-# Print the clean version of the playlist
-print(audio_features)
+audio_features_scaled <- as.data.frame(audio_features_scaled)
 
 # K-Means Clustering ------------------------------------------------------
 
@@ -49,12 +52,12 @@ ssw <- numeric(length(k))
 
 # Loop through the range of k values and calculate WSS
 for (i in k) {
-  kmeans_result <- kmeans(scaled_audio_features, centers = i, nstart = 25) #nstart = 25 
+  kmeans_result <- kmeans(audio_features_scaled, centers = i, nstart = 25) #nstart = 25 
   ssw[i] <- kmeans_result$tot.withinss  # Store the WSS
 }
 
 # Plotting the result
-plot(1:10, wss, type = "b", pch = 19, 
+plot(1:10, ssw, type = "b", pch = 19, 
      xlab = "Number of Clusters (k)", 
      ylab = "Total Within-Cluster Sum of Squares", 
      main = "Elbow Method")
@@ -63,33 +66,20 @@ plot(1:10, wss, type = "b", pch = 19,
 # The decline starts to flatten out. Therefore, 5 should be the most optimal number of clusters.
 
 
-# Normalising the data
-selected_features <- audio_features %>%
-  select(2,3,4,5,6,7,8)
-
-normalised_features <- selected_features %>%
-  mutate_if(is.numeric, function(x) (x - min(x)) / (max(x) - min(x)))
-
 # Performing K-means Clustering with the optimal k
-k <- 5  # Number of clusters
-kmeans_result <- kmeans(normalised_features, centers = k, nstart = 25)  # Exclude the ID column and the data is not scaled
-normalised_features$cluster <- kmeans_result$cluster
 
-pca_result <- PCA(normalised_features, graph = FALSE)
-df_pca <- data.frame(PCA = pca_result$ind, cluster = kmeans_result$cluster)
+k <- 4 # Number of clusters
 
-df_pca
+kmeans_result <- kmeans(audio_features_scaled, centers = k, nstart = 25)  # Exclude the ID column
 
-# Plot clusters
-ggplot(df_pca, aes(x = PCA.contrib.Dim.1, y = PCA.contrib.Dim.5, color = factor(cluster))) +
-  geom_point(size = 3, alpha = 0.75) +
-  labs(title = "Clustering Result", x = "PC1", y = "PC2")
+audio_features_scaled$cluster <- kmeans_result$cluster
 
-scatterplot3d(normalised_features$danceability, normalised_features$energy,
-              color = kmeans_result$cluster, pch = 16, angle = 60, scale.y = 0.7,
-              main = "K-Means Clustering in 3D",
-              xlab = "Danceability", ylab = "Energy")
+fviz_cluster(kmeans_result, data = audio_features_scaled, 
+             geom = "point", stand = FALSE, 
+             ellipse.type = "convex", ggtheme = theme_minimal())
 
-# Add cluster centers
-scatterplot3d(km$centers[,1], km$centers[,2], km$centers[,3],
-              color = "red", pch = 18, scale.y = 0.7, add = TRUE)
+ggplot(audio_features_scaled, mapping = aes(x = instrumentalness, y = speechiness, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal()
+
+  
