@@ -26,15 +26,23 @@ print(audio_features)
 
 # Select relevant audio features for clustering
 audio_features_selected <- audio_features %>%
-  select(track.name, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
+  select(track.name, danceability, energy, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
 
 audio_features_selected <- na.omit(audio_features_selected)
-print(audio_features_selected)
 
-# Standardize (scale) the features
-audio_features_scaled <- scale(audio_features_selected[,-1])
+print(audio_features_selected, n = 200)
 
-audio_features_scaled <- as.data.frame(audio_features_scaled)
+# Normalization function: rescales data to the range [0, 1]
+minmax <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+# Apply normalization to the numeric features
+audio_features_normalised <- as.data.frame(lapply(audio_features_selected[, c("danceability", "energy", "valence","liveness","tempo", 
+                                                              "instrumentalness", "acousticness", "speechiness")], minmax))
+
+# Inspect normalized features
+head(audio_features_normalised)
 
 # K-Means Clustering ------------------------------------------------------
 
@@ -52,7 +60,7 @@ ssw <- numeric(length(k))
 
 # Loop through the range of k values and calculate WSS
 for (i in k) {
-  kmeans_result <- kmeans(audio_features_scaled, centers = i, nstart = 25) #nstart = 25 
+  kmeans_result <- kmeans(audio_features_selected[,-1], centers = i, nstart = 25) #nstart = 25 
   ssw[i] <- kmeans_result$tot.withinss  # Store the WSS
 }
 
@@ -62,24 +70,27 @@ plot(1:10, ssw, type = "b", pch = 19,
      ylab = "Total Within-Cluster Sum of Squares", 
      main = "Elbow Method")
 
-## We can see that the SSW declined steeply as the number of clusters went from 1 to 4. However, at k = 5 onward,
-# The decline starts to flatten out. Therefore, 5 should be the most optimal number of clusters.
+## We can see that the SSW declined steeply as the number of clusters went from 1 to 3. However, at k = 4 onward,
+# The decline starts to flatten out. Therefore, 4 should be the most optimal number of clusters.
 
 
 # Performing K-means Clustering with the optimal k
 
 k <- 4 # Number of clusters
 
-kmeans_result <- kmeans(audio_features_scaled, centers = k, nstart = 25)  # Exclude the ID column
+kmeans_result <- kmeans(audio_features_normalised, centers = k, nstart = 25)  # Exclude the ID column
 
-audio_features_scaled$cluster <- kmeans_result$cluster
+audio_features_normalised$cluster <- kmeans_result$cluster
 
-fviz_cluster(kmeans_result, data = audio_features_scaled, 
+fviz_cluster(kmeans_result, data = audio_features_selected[,-1], 
              geom = "point", stand = FALSE, 
              ellipse.type = "convex", ggtheme = theme_minimal())
 
-ggplot(audio_features_scaled, mapping = aes(x = instrumentalness, y = speechiness, color = factor(cluster))) +
+ggplot(audio_features_normalised, mapping = aes(x = energy , y = valence, color = factor(cluster))) +
   geom_point() +
   theme_minimal()
 
-  
+ggpairs(audio_features_normalised, 
+        aes(color = as.factor(cluster), alpha = 0.5),
+        columns = 1:8) # Select the columns representing your features (1:7)
+
