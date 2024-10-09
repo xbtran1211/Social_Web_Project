@@ -4,6 +4,11 @@
 ## Initiating working environment
 
 library(spotifyr)
+library(dplyr)
+library(FactoMineR)
+library(factoextra)
+library(ggpubr)
+library(GGally)
 
 Sys.setenv(SPOTIFY_CLIENT_ID = '3a5930bcdbb744079f18ee5b827e52f5') # Spotify client ID
 Sys.setenv(SPOTIFY_CLIENT_SECRET = '52b9bdfead98433c8d5169c10ed6ea1a') # Spotify client secret ID"
@@ -12,12 +17,6 @@ access_token <- get_spotify_access_token() # Get access token
 
 
 # Data collection and exploration -----------------------------------------
-
-library(dplyr)
-library(FactoMineR)
-library(factoextra)
-library(ggpubr)
-library(GGally)
 
 my_playlist_id <- "5Sc2esIc6s0VsJTE5GgfDg"
 
@@ -69,6 +68,22 @@ audio_features_normalised <- as.data.frame(lapply(audio_features_selected[, c("d
 
 # Inspect normalized features
 head(audio_features_normalised)
+
+
+# Heat Map ----------------------------------------------------------------
+first_50_tracks <- audio_features_normalised[1:50,]
+heatmap(as.matrix(first_50_tracks),
+        Colv = NA,
+        Rowv = NA,
+        cexRow = 0.75,
+        cexCol = 0.75)
+
+# Based on the customised layout of the heatmap above, we can inspect the audio features of 
+# the first 50 tracks within the playlist. We used the color saturation of orange to indicate
+# the level of each feature. For example, it seemed that the first 50 tracks all have high level
+# of danceability, which is clearly obvious because most the tracks belong to pop/rock genre. 
+# Furthermore, almost all of them have very low level of instrumentalness, meaning very few
+# of them are free of vocals and speech.
 
 # K-Means Clustering ------------------------------------------------------
 
